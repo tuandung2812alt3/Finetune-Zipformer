@@ -255,50 +255,32 @@ class MultiDataset(Dataset):
         raise IndexError(f"Index {idx} out of range")
     
     def __getitem__(self, idx):
-        # sample, text_col = self._get_sample(idx)
-        # audio = sample["audio"]
-        # text = sample[text_col]
-        
-        # # Get waveform
-        # if isinstance(audio, dict):
-        #     waveform = torch.tensor(audio["array"], dtype=torch.float32)
-        #     sr = audio["sampling_rate"]
-        # else:
-        #     waveform = torch.tensor(audio, dtype=torch.float32)
-        #     sr = self.sample_rate
         sample, text_col = self._get_sample(idx)
+        # print('sample:', sample)
         audio = sample["audio"]
         text = sample[text_col]
-
-        # Decode waveform + sampling rate
-        if hasattr(audio, "get_all_samples"):  # TorchCodec AudioDecoder
-            samples = audio.get_all_samples()
-            waveform = samples.data  # torch.Tensor [channels, time]
-            sr = samples.sample_rate
-        elif isinstance(audio, dict) and "array" in audio:  # HF old format
+        # print("got text:", text)
+        # Get waveform
+        if isinstance(audio, dict):
             waveform = torch.tensor(audio["array"], dtype=torch.float32)
-            sr = audio.get("sampling_rate", self.sample_rate)
+            sr = audio["sampling_rate"]
         else:
-            # Last fallback (only if it's already a tensor/array)
             waveform = torch.tensor(audio, dtype=torch.float32)
-            sr = getattr(self, "sample_rate", None)
-
-        # Squeeze channel dim if mono [1, T] → [T]
-        if waveform.dim() == 2 and waveform.size(0) == 1:
-            waveform = waveform.squeeze(0)
-
+            sr = self.sample_rate
+        # print("got waveform:", waveform.shape)
         # Resample if needed
         if sr != self.sample_rate:
             waveform = torchaudio.functional.resample(waveform, sr, self.sample_rate)
-        
+        # print("resampled waveform:", waveform.shape)
         # Truncate if too long
         if waveform.size(0) > self.max_frames:
             waveform = waveform[:self.max_frames]
-        
+        # print("truncated waveform:", waveform.shape)
         # Extract features
         if waveform.dim() == 1:
             waveform = waveform.unsqueeze(0)
-        
+        # print("unsqueezed waveform:", waveform.shape, waveform.device)
+        waveform = waveform.cpu().float()              # ensure float
         features = torchaudio.compliance.kaldi.fbank(
             waveform,
             num_mel_bins=80,
@@ -306,7 +288,7 @@ class MultiDataset(Dataset):
             frame_length=25.0,
             frame_shift=10.0,
         )
-        
+        # print("extracted features:", features.shape)
         # Encode text (UPPERCASE for this tokenizer)
         text_upper = text.upper().strip()
         tokens = self.sp.encode(text_upper, out_type=int)
@@ -315,6 +297,7 @@ class MultiDataset(Dataset):
             "features": features,
             "tokens": torch.tensor(tokens, dtype=torch.long),
         }
+
 
 
 def collate_fn(batch):
