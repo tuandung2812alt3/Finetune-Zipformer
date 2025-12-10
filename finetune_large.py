@@ -98,7 +98,7 @@ class TrainingConfig:
     
     # Other
     use_fp16: bool = True
-    num_workers: int = 4
+    num_workers: int = 0
     save_every_epoch: int = 1
     log_every: int = 1
     seed: int = 42
