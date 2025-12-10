@@ -22,7 +22,7 @@ sys.path.insert(0, str(ICEFALL_ROOT / "egs/librispeech/ASR/zipformer"))
 sys.path.insert(0, str(ICEFALL_ROOT))
 
 warnings.filterwarnings("ignore", category=FutureWarning)
-
+warnings.filterwarnings("ignore", category=UserWarning)
 from zipformer import Zipformer2
 from decoder import Decoder
 from joiner import Joiner
